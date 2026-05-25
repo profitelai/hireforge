@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import get_current_user, require_admin
+from app.models import User
 from app.schemas import (
     ActivateProviderRequest,
     IntegrationInfo,
@@ -15,8 +17,10 @@ from app.schemas import (
 )
 from app.services.settings import (
     KNOWN_MODELS,
+    NO_API_KEY_PROVIDERS,
     clear_provider_api_key,
     get_llm_config,
+    get_ollama_base_url,
     get_provider_api_key,
     get_setting,
     migrate_legacy_api_key,
@@ -32,7 +36,9 @@ PROVIDER_LABELS = {
     "gemini": "Google Gemini",
     "anthropic": "Anthropic Claude",
     "openai": "OpenAI",
-    "ollama": "Ollama (local)",
+    "openrouter": "OpenRouter",
+    "taalas": "Taalas (free Llama)",
+    "ollama": "Ollama (local / remote)",
 }
 
 
@@ -46,7 +52,7 @@ def _mask_api_key(key: str) -> str | None:
 
 
 @router.get("/settings", response_model=SettingsResponse)
-def get_settings(db: Session = Depends(get_db)):
+def get_settings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_model = get_setting(db, "llm_provider")
     model, api_key = get_llm_config(db)
     source = "database" if db_model and api_key else "none"
@@ -58,7 +64,8 @@ def get_settings(db: Session = Depends(get_db)):
 
 
 @router.get("/settings/integrations", response_model=IntegrationsResponse)
-def get_integrations(db: Session = Depends(get_db)):
+def get_integrations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    is_admin = current_user.id == 1
     active_model = get_setting(db, "llm_provider") or ""
     active_provider = provider_from_model(active_model)
 
@@ -82,8 +89,8 @@ def get_integrations(db: Session = Depends(get_db)):
                 label=PROVIDER_LABELS.get(provider_id, provider_id),
                 is_active=is_active,
                 api_key_configured=bool(api_key),
-                masked_api_key=_mask_api_key(api_key) if api_key else None,
-                api_key=api_key if api_key else None,
+                masked_api_key=_mask_api_key(api_key) if api_key and is_admin else None,
+                api_key=api_key if api_key and is_admin else None,
                 current_model=current_model,
             )
         )
@@ -151,6 +158,20 @@ def test_connection(req: UpdateSettingsRequest):
         return TestConnectionResponse(ok=False, message=str(e))
 
 
+@router.get("/settings/ollama-url")
+def get_ollama_url(db: Session = Depends(get_db)):
+    """Return the configured Ollama base URL."""
+    return {"url": get_ollama_base_url(db)}
+
+
+@router.put("/settings/ollama-url")
+def set_ollama_url(body: dict, db: Session = Depends(get_db)):
+    """Persist a custom Ollama base URL (e.g. an ngrok tunnel or remote server)."""
+    url = (body.get("url") or "").strip().rstrip("/")
+    set_setting(db, "ollama_base_url", url)
+    return {"url": url or get_ollama_base_url(db)}
+
+
 @router.delete("/settings/integrations/{provider_id}", response_model=IntegrationsResponse)
 def disconnect_provider(provider_id: str, db: Session = Depends(get_db)):
     """Remove the stored API key for a provider. If it was active, clear the active model."""
@@ -176,8 +197,14 @@ def get_models():
                 id=provider_id,
                 label=PROVIDER_LABELS.get(provider_id, provider_id),
                 models=[ModelOption(value=m, label=m) for m in models],
-                requires_api_key=provider_id != "ollama",
+                requires_api_key=provider_id not in NO_API_KEY_PROVIDERS,
             )
             for provider_id, models in KNOWN_MODELS.items()
         ]
     )
+
+
+@router.get("/settings/is-admin")
+def is_admin_check(current_user: User = Depends(get_current_user)):
+    return {"is_admin": current_user.id == 1}
+

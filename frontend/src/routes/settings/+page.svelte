@@ -14,6 +14,7 @@
   let modalApiKey = $state('');
   let integrations: IntegrationInfo[] = $state([]);
   let loading = $state(true);
+  const isAdmin = $derived(auth.user?.id === 1);
   let activating = $state('');
   let confirmingActivate = $state('');
   let disconnecting = $state('');
@@ -242,6 +243,7 @@
 
           <!-- Actions -->
           <div class="flex items-center gap-2 shrink-0">
+            {#if isAdmin}
             {#if (integration.api_key_configured || integration.id === 'ollama') && !integration.is_active}
               {#if confirmingActivate === integration.id}
                 <div class="flex items-center gap-1.5">
@@ -304,6 +306,9 @@
                 Connect
               {/if}
             </button>
+            {:else}
+              <span class="text-xs text-muted-foreground italic px-2">View only</span>
+            {/if}
           </div>
         </div>
       {/each}

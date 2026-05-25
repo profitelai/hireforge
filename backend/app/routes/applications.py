@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Application, GeneratedCoverLetter, GeneratedCV
+from app.dependencies import get_current_user, get_user_profile_ids
+from app.models import Application, GeneratedCoverLetter, GeneratedCV, User
 from app.schemas import (
     ApplicationEntry,
     ApplicationListResponse,
@@ -38,6 +39,7 @@ def _enrich_app(app: Application, profiles: dict) -> dict:
         "location": app.location,
         "salary": app.salary,
         "job_description": app.job_description,
+        "resume_url": app.resume_url,
     }
 
 
@@ -98,7 +100,28 @@ def _build_app_entry(app: Application, db: Session) -> ApplicationEntry:
 
 
 @router.post("/applications", response_model=ApplicationEntry)
-def create_application(body: CreateApplicationRequest, db: Session = Depends(get_db)):
+def create_application(
+    body: CreateApplicationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_pids = get_user_profile_ids(current_user, db)
+    if body.profile_id not in user_pids:
+        raise HTTPException(status_code=403, detail="Access denied.")
+    if body.job_url and body.job_url.strip():
+        existing = (
+            db.query(Application)
+            .filter(
+                Application.profile_id == body.profile_id,
+                Application.job_url == body.job_url.strip(),
+            )
+            .first()
+        )
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail={"detail": "Job already exists", "code": "DUPLICATE_JOB", "existing_id": existing.id},
+            )
     app = Application(
         company_name=body.company_name,
         role_title=body.role_title,
@@ -120,6 +143,7 @@ def create_application(body: CreateApplicationRequest, db: Session = Depends(get
 @router.get("/applications", response_model=ApplicationListResponse)
 def list_applications(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     profile_id: int | None = Query(default=None),
     status: str | None = Query(default=None),
     search: str | None = Query(default=None),
@@ -129,7 +153,8 @@ def list_applications(
     match_max: int | None = Query(default=None),
     sort: str = Query(default="date_desc"),
 ):
-    q = db.query(Application)
+    user_pids = get_user_profile_ids(current_user, db)
+    q = db.query(Application).filter(Application.profile_id.in_(user_pids))
     if profile_id is not None:
         q = q.filter(Application.profile_id == profile_id)
     if status:
@@ -177,24 +202,35 @@ def list_applications(
 
 
 @router.get("/applications/{app_id}", response_model=ApplicationEntry)
-def get_application(app_id: int, db: Session = Depends(get_db)):
-    app = db.query(Application).filter_by(id=app_id).first()
-    if not app:
-        raise HTTPException(
-            status_code=404, detail={"detail": "Not found", "code": "NOT_FOUND"}
-        )
-    return _build_app_entry(app, db)
-
-
-@router.patch("/applications/{app_id}", response_model=ApplicationEntry)
-def update_application(
-    app_id: int, body: UpdateApplicationRequest, db: Session = Depends(get_db)
+def get_application(
+    app_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     app = db.query(Application).filter_by(id=app_id).first()
     if not app:
         raise HTTPException(
             status_code=404, detail={"detail": "Not found", "code": "NOT_FOUND"}
         )
+    if app.profile_id not in get_user_profile_ids(current_user, db):
+        raise HTTPException(status_code=403, detail="Access denied.")
+    return _build_app_entry(app, db)
+
+
+@router.patch("/applications/{app_id}", response_model=ApplicationEntry)
+def update_application(
+    app_id: int,
+    body: UpdateApplicationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    app = db.query(Application).filter_by(id=app_id).first()
+    if not app:
+        raise HTTPException(
+            status_code=404, detail={"detail": "Not found", "code": "NOT_FOUND"}
+        )
+    if app.profile_id not in get_user_profile_ids(current_user, db):
+        raise HTTPException(status_code=403, detail="Access denied.")
     for field, value in body.model_dump(exclude_unset=True).items():
         if field == "status" and value is not None:
             value = value if isinstance(value, str) else value.value
@@ -206,12 +242,18 @@ def update_application(
 
 
 @router.delete("/applications/{app_id}")
-def delete_application(app_id: int, db: Session = Depends(get_db)):
+def delete_application(
+    app_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     app = db.query(Application).filter_by(id=app_id).first()
     if not app:
         raise HTTPException(
             status_code=404, detail={"detail": "Not found", "code": "NOT_FOUND"}
         )
+    if app.profile_id not in get_user_profile_ids(current_user, db):
+        raise HTTPException(status_code=403, detail="Access denied.")
     # Nullify FKs on linked documents before deleting
     db.query(GeneratedCoverLetter).filter_by(application_id=app_id).update(
         {"application_id": None}

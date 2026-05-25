@@ -95,7 +95,7 @@ async def scrape_linkedin_job_urls(
             if "linkedin.com/login" in current or "linkedin.com/authwall" in current:
                 raise ValueError(
                     "LinkedIn session expired. Re-authenticate: "
-                    "python3 ${HIREFORGE_SCRIPTS_DIR:-./scripts}/linkedin_connect.py"
+                    "python3 /Users/danimaster/applykit/linkedin_connect.py"
                 )
 
             stale_scrolls = 0

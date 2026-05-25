@@ -21,7 +21,7 @@
   let checkingLinkedIn  = $state(false);
   let copied            = $state(false);
 
-  const CONNECT_CMD = 'python3 ./scripts/linkedin_connect.py';
+  const CONNECT_CMD = 'python3 /Users/danimaster/applykit/linkedin_connect.py';
 
   async function checkLinkedIn() {
     checkingLinkedIn = true;

@@ -1,198 +1,464 @@
-# HireForge — AI Resume Builder with ATS Score & Interview Prep
+# HireForge
 
-> Built by [danimaster.com](https://danimaster.com) · Live at [jobs.bizlocal.ca](https://jobs.bizlocal.ca) · MIT License
+![HireForge Banner](assets/banner.png)
 
-**HireForge** is a free, open-source, self-hosted AI job application toolkit. Build ATS-optimized resumes, write tailored cover letters, practice interviews with AI scoring, auto-apply to jobs, and track every application — all in one place, with your data fully private on your own server.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12-blue)](https://python.org)
+[![SvelteKit](https://img.shields.io/badge/SvelteKit-2-orange)](https://kit.svelte.dev)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-jobs.bizlocal.ca-green)](https://jobs.bizlocal.ca)
+
+**Self-hosted AI resume builder with ATS scoring, cover letter generation, and interview prep.**
+Multi-user SaaS architecture — each user gets their own isolated workspace. Works with any LLM, including local models via Ollama.
+
+> Built by [danimaster.com](https://danimaster.com)
+
+## Live Demo
+
+**[jobs.bizlocal.ca](https://jobs.bizlocal.ca)**
+
+Try it with the demo account:
+- **Email:** `demo@hireforge.io`
+- **Password:** `Demo1234!`
+
+> The demo account has an isolated workspace — it cannot see or modify the admin's data. Register your own account for a fresh workspace.
 
 ---
 
 ## Features
 
-### Resume & CV
-- **ATS Resume Builder** — Generate ATS-optimized resumes with AI-enhanced bullet points tailored to specific job descriptions
-- **Resume Generation from Job Posts** — Upload a job description file or paste a LinkedIn/Indeed job URL, and the AI automatically creates a customized resume optimized for that specific role
-- **ATS Match Score** — Instantly see how well your resume matches a job posting before applying
-- **Multi-Profile Management** — Manage multiple resumes, industries, and career profiles from one dashboard
-
-### Cover Letter & Applications
-- **AI Cover Letter Generator** — Generate personalized cover letters instantly from a job file, company description, or LinkedIn job posting URL
-- **Smart Apply** — One-click generation of a tailored resume and cover letter directly from a LinkedIn or job posting URL
-- **Auto Apply System** — Automatically apply to selected jobs using your customized resume, cover letter, and profile preferences
-- **Job Application Tracker** — Track applications across all hiring stages: Applied, Interviewing, and Offer
-
-### Interview Preparation
-- **Interview Preparation** — Practice with AI-generated interview questions and receive scored feedback in both English and French
-- **Voice Recording & AI Analysis** — Record your interview answers directly inside the platform. The AI listens and analyzes your answers — checking grammar, sentence structure, communication clarity, confidence, and pronunciation — then provides improvement suggestions and lets you retry to improve
-
-### Privacy & Hosting
-- **Self-hosted & Private** — Your data stays fully private and hosted on your own server
-- **Local LLM Support** — Run the AI models on your own laptop (via Ollama) while the app stays online. See [Local LLM Setup](#local-llm-setup-ollama) below
+- **Multi-profile support** — create separate profiles for different roles (e.g. "Software Engineer", "Product Manager"), each with its own history and color
+- **AI CV generation** — rewrites bullet points and summary to be ATS-optimized for a specific job description
+- **AI cover letter generation** — writes a tailored cover letter from your profile + job description in seconds
+- **CV import** — paste or upload an existing PDF/DOCX and AI extracts your profile automatically
+- **Job URL scraper** — paste a job posting URL and AI extracts the description
+- **Fit analysis** — see how well your profile matches a job description with match score, strengths, gaps, and red flags
+- **Smart Apply** — paste a URL, auto-parse job details, and generate a tailored CV + cover letter in one flow
+- **Job application tracker** — Kanban board for tracking applications through Applied → Interviewing → Offer → Rejected
+- **History** — every generated CV and cover letter is saved, browsable, and filterable by profile
+- **PDF export** — download as PDF or use browser print (A4 format)
+- **LLM-agnostic** — works with Gemini, OpenAI, Anthropic, or any local model via Ollama
+- **Works without an API key** — CV generation falls back to your raw profile data if no LLM is configured
+- **Dark mode** — full dark theme support
 
 ---
 
-## Tech Stack
+## How It Works
+
+```
+Browser (localhost:5173)
+       │
+       ▼
+  SvelteKit Frontend
+  - Profile editor (multi-profile)
+  - CV preview & export
+  - Cover letter editor
+  - Fit analysis
+  - Job tracker (Kanban)
+  - History browser
+       │  HTTP (REST API)
+       ▼
+  FastAPI Backend (localhost:8000)
+  - Profile CRUD (SQLite, multi-profile)
+  - CV import (PDF/DOCX/text → LLM extraction)
+  - ATS CV enhancement (LLM)
+  - Cover letter generation (LLM)
+  - Fit score analysis (LLM)
+  - Job URL scraping (Jina + Crawl4AI)
+  - PDF export (WeasyPrint)
+  - Generation history
+       │
+       ▼
+  LiteLLM → any LLM provider (Gemini, OpenAI, Anthropic, Ollama...)
+```
+
+---
+
+## Stack
 
 | Layer | Technology |
-|---|---|
-| Frontend | SvelteKit, TypeScript, TailwindCSS, shadcn-svelte |
-| Backend | Python (FastAPI), SQLite, Alembic |
-| AI / LLM | LiteLLM — supports OpenAI, OpenRouter, Anthropic, Ollama (local), and any OpenAI-compatible endpoint |
-| Deployment | Docker Compose |
+|-------|-----------|
+| Frontend | SvelteKit 2 + Svelte 5 (runes) + TypeScript |
+| Styling | Tailwind CSS v4 + shadcn-svelte |
+| Backend | FastAPI + Python 3.12 |
+| Database | SQLite via SQLAlchemy 2.0 + Alembic |
+| AI | LiteLLM (configured via UI Settings) |
+| PDF | WeasyPrint (server-side) + browser print (client-side) |
+| CV parsing | pdfplumber (PDF), python-docx (DOCX) |
+| Job scraping | Jina Reader (primary) + Crawl4AI (fallback) + LLM parsing |
+| Package managers | uv (Python), Bun (JavaScript) |
+
+---
+
+## Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) — Python package manager
+- [Bun](https://bun.sh/) — JavaScript runtime
+- **WeasyPrint system dependencies** (for PDF generation):
+  - Ubuntu/Debian: `apt-get install libcairo2 libpango-1.0-0 libgdk-pixbuf2.0-0 libffi7 shared-mime-info`
+  - macOS: `brew install cairo pango gdk-pixbuf`
+  - Windows: Included in the WeasyPrint pip package
+- An LLM API key (optional — required for AI features):
+  - [Google AI Studio](https://aistudio.google.com/) for Gemini (recommended, has a generous free tier)
+  - [OpenAI](https://platform.openai.com/), [Anthropic](https://console.anthropic.com/), or any [LiteLLM-supported provider](https://docs.litellm.ai/docs/providers)
+  - Or [Ollama](https://ollama.com/) for fully local, offline usage
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-- Docker + Docker Compose
-- One of: OpenAI API key, OpenRouter API key, or Ollama installed locally
-
-### 1. Clone
+### Option A — Docker (recommended)
 
 ```bash
-git clone https://github.com/profitelai/hireforge.git
-cd hireforge
+git clone https://github.com/wihlarkop/applykit.git
+cd applykit
+docker compose up --build
 ```
 
-### 2. Configure
+Open **http://localhost:3000** — your data is stored in a Docker volume and persists across restarts.
+
+### Option B — Manual
 
 ```bash
-# Backend
+# 1. Clone
+git clone https://github.com/wihlarkop/applykit.git
+cd applykit
+
+# 2. Configure
 cp backend/.env.example backend/.env
 
-# Frontend
-cp frontend/.env.example frontend/.env
+# 3. Install dependencies
+make install
+
+# 4. Run database migrations
+make migrate
+
+# 5. Start (two separate terminals)
+make backend    # http://localhost:8000
+make frontend   # http://localhost:5173
 ```
 
-Edit `backend/.env` and add your API key(s):
+Open **http://localhost:5173** — you'll be guided through setup on first launch.
 
-```env
-# Choose one or more providers
-OPENAI_API_KEY=sk-...
-OPENROUTER_API_KEY=sk-or-...
+---
 
-# Database (SQLite, default is fine)
-DATABASE_URL=sqlite:///./hireforge.db
-```
+## Docker
 
-### 3. Run
+### Default setup
 
 ```bash
-docker compose up -d
+docker compose up --build
 ```
 
-App is available at **http://localhost:3000**
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:8000`
+- SQLite data: persisted in a named Docker volume (`applykit_applykit-data`)
+
+### Deploying to a remote server
+
+If you're running on a server instead of localhost, set `VITE_API_BASE_URL` to your domain before building:
+
+```bash
+VITE_API_BASE_URL=https://api.yourdomain.com/api docker compose up --build
+```
+
+Or edit the `args` block in `docker-compose.yml`:
+
+```yaml
+args:
+  VITE_API_BASE_URL: https://api.yourdomain.com/api
+```
+
+> `VITE_API_BASE_URL` is baked into the frontend at build time — the browser uses it to reach the backend. It must be publicly reachable from the user's machine.
+
+### Backing up your data
+
+SQLite is stored in a Docker volume. To export it:
+
+```bash
+docker run --rm \
+  -v applykit_applykit-data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/applykit-backup.tar.gz /data
+```
+
+### Useful Docker commands
+
+```bash
+docker compose up --build        # Build and start
+docker compose up -d             # Start in background
+docker compose down              # Stop
+docker compose logs -f backend   # Follow backend logs
+docker compose exec backend uv run alembic upgrade head  # Run migrations manually
+```
 
 ---
 
-## Local LLM Setup (Ollama)
+## Setup (Manual)
 
-HireForge is built to work with **local LLMs via [Ollama](https://ollama.com)**. This means you can keep the app hosted online (on a server or VPS) while the AI model runs entirely on your own laptop or machine — no cloud API costs, no data sent to third parties.
+### 1. Clone the repository
 
-### How it works
+```bash
+git clone https://github.com/your-username/applykit.git
+cd applykit
+```
 
+### 2. Configure the backend
 
+```bash
+cd backend
+cp .env.example .env
+```
 
-The server calls the Ollama API on your machine. Your resume data and prompts never leave your local network for AI processing.
+### 3. Install backend dependencies
 
-### Setup
+```bash
+uv sync
+```
 
-1. **Install Ollama** on your laptop: [ollama.com](https://ollama.com)
+### 4. Run database migrations
 
-2. **Pull a model:**
-   ```bash
-   ollama pull llama3.2        # fast, good quality
-   ollama pull qwen3.5         # strong multilingual support
-   ollama pull llama4          # most capable
-   ```
+```bash
+uv run alembic upgrade head
+```
 
-3. **Expose Ollama to your network** (if HireForge runs on a remote server):
-   ```bash
-   OLLAMA_HOST=0.0.0.0 ollama serve
-   ```
-   Or use a tunnel tool like [ngrok](https://ngrok.com):
-   ```bash
-   ngrok http 11434
-   ```
+### 5. Start the backend
 
-4. **Configure in HireForge:**
-   - Open HireForge → Settings → AI Provider
-   - Select **Ollama** as provider
-   - Set the Ollama URL to your machine's IP or ngrok URL (e.g. `http://192.168.1.x:11434` or `https://your-ngrok-url.ngrok-free.dev`)
-   - Select your model (llama3.2, qwen3.5, etc.)
-   - No API key required
+```bash
+uv run main.py
+# API: http://localhost:8000
+# Swagger UI: http://localhost:8000/docs
+```
 
-### Supported local models
+### 6. Install and start the frontend
 
-| Model | Size | Best for |
-|---|---|---|
-| llama3.2 | 2–8B | Fast, general use |
-| llama3.1 | 8B | Balanced quality |
-| llama4 | 17B+ | Best quality |
-| qwen3.5 | 8B | Strong multilingual (EN/FR) |
-| glm-4.7-flash | 7B | Fast Chinese/English |
-
-> **Note:** Voice features (TTS + Whisper transcription) require an OpenAI API key regardless of which LLM you use for generation.
+```bash
+cd ../frontend
+bun install
+bun run dev
+# Frontend: http://localhost:5173
+```
 
 ---
 
-## Environment Variables
+## Makefile Commands
 
-### Backend (`backend/.env`)
-
-| Variable | Description | Required |
-|---|---|---|
-| `DATABASE_URL` | SQLite path (default: `sqlite:///./hireforge.db`) | No |
-| `OPENAI_API_KEY` | OpenAI key — required for voice/TTS features | For voice |
-| `OPENROUTER_API_KEY` | OpenRouter key (access to 200+ models) | Optional |
-| `OLLAMA_API_BASE` | Ollama base URL override (default: `http://localhost:11434`) | No |
-| `HIREFORGE_SCRIPTS_DIR` | Path to LinkedIn automation scripts | Optional |
-
-### Frontend (`frontend/.env`)
-
-| Variable | Description | Default |
-|---|---|---|
-| `VITE_API_BASE_URL` | Backend API URL | `http://localhost:8000/api` |
+```bash
+make install        # Install all dependencies (backend + frontend)
+make migrate        # Run database migrations
+make backend        # Start backend server (http://localhost:8000)
+make frontend       # Start frontend dev server (http://localhost:5173)
+make lint           # Lint frontend TypeScript/Svelte
+make migrate-new MSG="description"  # Create a new migration
+make migrate-down                   # Roll back the last migration
+make help           # Show all commands
+```
 
 ---
 
-## Project Structure
+## Configuration
 
+### Database
+
+Edit `backend/.env` to change the database path:
+
+```env
+DATABASE_URL=sqlite:///./applykit.db
 ```
-hireforge/
-├── frontend/          # SvelteKit app
-│   └── src/
-│       ├── routes/    # Pages: /, /generate, /interview, /tracker, etc.
-│       └── lib/       # API client, components, utilities
-├── backend/           # FastAPI app
-│   └── app/
-│       ├── routes/    # API endpoints
-│       ├── services/  # LLM, interview, CV logic
-│       └── models.py  # Database models
-├── docker-compose.yml
-└── .env.example
-```
+
+SQLite is the default and requires no additional setup. PostgreSQL is on the roadmap.
+
+### LLM Settings
+
+LLM configuration (provider, API key, model) is managed via the **Settings** page in the UI — no need to edit `.env` manually.
+
+Click the **Settings** icon (gear) in the top navigation to connect a provider. You can connect multiple providers and switch between them at any time.
+
+> **No API key?** The app still works. CV generation falls back to your raw profile data without AI enhancement. Import, cover letter generation, and fit analysis require an LLM to be configured.
+
+---
+
+## Usage
+
+### 1. Create a profile
+
+On first launch you'll be guided through setup. Fill in:
+- Personal info (name, email, location, LinkedIn, GitHub)
+- Work experience with bullet points
+- Education, skills, projects, certifications
+
+Or use **AI Sync** (sparkle button on the profile page) to upload an existing CV and auto-fill everything instantly.
+
+### 2. Generate a CV
+
+1. Go to **Generate CV**
+2. Optionally paste a job description — the AI will tailor bullet points to match its keywords
+3. Click **Generate ATS CV**
+4. Preview, then **Download PDF** or **Print**
+
+### 3. Write a cover letter
+
+1. Go to **Cover Letter**
+2. Fill in company name (optional), job description, and any emphasis notes
+3. Click **Write Cover Letter**
+4. Copy, download as PDF, or print
+
+### 4. Analyze job fit
+
+Paste a job description in the Cover Letter page and click **Analyze Fit** to see:
+- Match score (0–100%)
+- Strengths and gaps
+- Missing keywords
+- Red flags
+- Suggested emphasis for your cover letter
+
+### 5. Smart Apply
+
+1. Go to **Smart Apply**
+2. Paste a job posting URL — ApplyKit scrapes it automatically
+3. Review the extracted job details
+4. Generate a tailored CV + cover letter in one click
+
+### 6. Track applications
+
+Go to **Tracker** to add jobs, drag cards between stages, and link generated CVs and cover letters to each application.
+
+### 7. Browse history
+
+Go to **History** to see every generated CV and cover letter. Filter by profile, search, sort by match score, and preview or re-download any entry.
+
+---
+
+## Smart Apply — Supported Job Boards
+
+### ATS Platforms (Direct API — Fastest)
+
+| Platform | Status |
+|----------|--------|
+| Greenhouse | ✅ Supported |
+| Lever | ✅ Supported |
+| Ashby | ✅ Supported |
+| JazzHR | 📋 Planned |
+| BambooHR | 📋 Planned |
+| Workday | 📋 Planned (requires browser automation) |
+
+### Generic Websites
+
+For boards without direct API support, Smart Apply uses Jina to scrape the page and an LLM to extract structured fields. This works on most job sites.
+
+---
+
+## Security
+
+ApplyKit has **no built-in authentication**. It is designed to run:
+- On `localhost` for personal use (default)
+- On a private server with network-level access control
+
+**Do not expose ApplyKit to the public internet** without putting an auth proxy (e.g. Authelia, Nginx basic auth, Cloudflare Access) in front of it.
+
+All LLM API keys are stored in your local SQLite database and never leave your machine.
+
+---
+
+## Roadmap
+
+Items marked ✅ are shipped. Items marked 📋 are planned.
+
+### Core App
+| Status | Feature |
+|--------|---------|
+| ✅ | Multi-profile support |
+| ✅ | ATS CV generation with job description tailoring |
+| ✅ | AI cover letter generation |
+| ✅ | CV import from PDF/DOCX |
+| ✅ | Fit score analysis (match %, strengths, gaps, red flags) |
+| ✅ | Job URL scraper (Greenhouse, Lever, Ashby + generic) |
+| ✅ | Smart Apply (URL → CV + CL in one flow) |
+| ✅ | Job application tracker (Kanban) |
+| ✅ | Generation history with search and filters |
+| ✅ | PDF export (WeasyPrint server-side + browser print) |
+| ✅ | LLM usage log with token/cost tracking |
+| ✅ | Docker Compose — one-command install |
+| 📋 | Docker: nginx reverse proxy so frontend + backend share port 80 |
+| 📋 | Docker: multi-arch builds (arm64 for Apple Silicon / Raspberry Pi) |
+| 📋 | Docker: pre-built images on GitHub Container Registry (ghcr.io) |
+| 📋 | PostgreSQL support |
+| ✅ | Real-time CV split-screen preview |
+| 📋 | One-click portfolio site generator |
+
+### AI Providers
+| Status | Provider |
+|--------|---------|
+| ✅ | Gemini (Google AI Studio) |
+| ✅ | OpenAI |
+| ✅ | Anthropic |
+| ✅ | Ollama (local, offline) |
+| ✅ | Any LiteLLM-compatible provider |
+| ✅ | Connect / disconnect providers from UI |
+| ✅ | Switch active provider with confirmation |
+
+### UX & Polish
+| Status | Feature |
+|--------|---------|
+| ✅ | Dark mode |
+| ✅ | Mobile-responsive layout |
+| ✅ | Toast notifications |
+| ✅ | Skeleton loading states |
+| ✅ | Onboarding flow |
+| ✅ | Profile color + icon picker |
+| ✅ | Confirm before overwriting profile via import |
+| ✅ | Warn when profile switch clears in-progress cover letter |
+| ✅ | Inline delete confirmation (no accidental deletions) |
+| ✅ | Tracker error state and no-results message |
+| ✅ | Fit analysis retry button |
+| ✅ | Red flags visually distinct from cons |
+| ✅ | Profile badge on CV history cards |
+| ✅ | Usage table mobile responsive |
+| 📋 | Keyboard shortcuts |
+| 📋 | Bulk export history |
+
+### Future Ideas
+| Feature | Description |
+|---------|-------------|
+| LinkedIn optimizer | AI-generated headlines and About sections |
+| Multi-language CV | One-click translation of the full profile |
+| Outreach generator | LinkedIn cold messages, recruiter emails, follow-ups |
+| Interview coach | Practice elevator pitch with voice feedback (Web Speech API) |
+| Browser extension | One-click Smart Apply from any job board |
 
 ---
 
 ## Contributing
 
-Pull requests are welcome. For major changes, open an issue first to discuss what you'd like to change.
+Contributions are welcome! Here's how to get started:
 
-1. Fork the repo
-2. Create your feature branch: `git checkout -b feature/my-feature`
-3. Commit your changes: `git commit -m 'Add my feature'`
-4. Push: `git push origin feature/my-feature`
-5. Open a Pull Request
+1. **Fork** the repository and create a branch: `git checkout -b feat/your-feature`
+2. **Set up** locally following the Quick Start guide above
+3. **Install pre-commit hooks** (one-time setup):
+   ```bash
+   bun install
+   bun x lefthook install
+   ```
+   This wires up automatic linting and formatting on every `git commit`. Requires [uv](https://docs.astral.sh/uv/) to be installed.
+4. **Make your changes** — keep PRs focused on a single feature or fix
+5. **Test** your changes manually (run both backend and frontend)
+6. **Submit a PR** with a clear description of what changed and why
+
+### Good first issues
+
+- Adding support for a new ATS platform in Smart Apply
+- Improving PDF export styling
+- Adding keyboard shortcuts
+- Translating the UI
+
+### Guidelines
+
+- Keep the self-hosted, local-first philosophy — no mandatory cloud services
+- Don't add authentication logic to the core app (out of scope)
+- Follow existing code style: Svelte 5 runes, Tailwind CSS, FastAPI patterns
+- For large features, open an issue first to discuss the approach
 
 ---
 
 ## License
 
-MIT License — Copyright (c) 2026 [danimaster.com](https://danimaster.com) — Profitel AI
-
-See [LICENSE](LICENSE) for full text.
-
----
-
-Built with care by [danimaster.com](https://danimaster.com)
+MIT — see [LICENSE](LICENSE)

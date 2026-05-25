@@ -501,11 +501,6 @@
   );
 </script>
 
-<svelte:head>
-  <title>HireForge — AI Interview Preparation & Practice</title>
-  <meta name="description" content="Practice job interviews with AI. Get scored feedback on your answers in English and French. Prepare for any role with real interview questions." />
-</svelte:head>
-
 {#if !isOnboarded}
   <EmptyState
     icon="user"

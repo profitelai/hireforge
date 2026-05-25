@@ -59,3 +59,17 @@ def require_llm_config(db: Session = Depends(get_db)) -> tuple[str, str]:
             },
         )
     return provider, api_key
+
+
+def get_user_profile_ids(user: User, db: Session) -> list[int]:
+    """Return all profile IDs owned by the current user."""
+    from app.models import Profile
+    rows = db.query(Profile.id).filter_by(user_id=user.id).all()
+    return [r[0] for r in rows]
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Allow only user_id=1 (the first registered owner/admin)."""
+    if current_user.id != 1:
+        raise HTTPException(status_code=403, detail="Admin access required.")
+    return current_user
