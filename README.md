@@ -7,10 +7,13 @@
 [![SvelteKit](https://img.shields.io/badge/SvelteKit-2-orange)](https://kit.svelte.dev)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-jobs.bizlocal.ca-green)](https://jobs.bizlocal.ca)
 
-**Self-hosted AI resume builder with ATS scoring, cover letter generation, and interview prep.**
-Multi-user SaaS architecture — each user gets their own isolated workspace. Works with any LLM, including local models via Ollama.
+**HireForge is a self-hosted, open-source AI resume builder and job search toolkit** — ATS CV optimization, cover letter generator, interview prep coach, job application tracker, and LinkedIn-ready profile export. Multi-user SaaS architecture with isolated workspaces. Works with any LLM: OpenAI, Gemini, Anthropic, Ollama (local/offline).
 
 > Built by [danimaster.com](https://danimaster.com)
+
+**Perfect for:** job seekers, career changers, recruiters, developers building career tools, or anyone who wants to stop writing the same resume from scratch for every application.
+
+**Keywords:** AI resume builder · ATS resume scanner · cover letter generator · interview coach · job application tracker · CV builder · job search automation · LinkedIn profile optimizer · self-hosted career tools
 
 ## Live Demo
 
