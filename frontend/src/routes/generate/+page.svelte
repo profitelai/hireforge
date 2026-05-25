@@ -12,7 +12,8 @@
   import { consumeStructuredStream } from '$lib/stream';
   import { toastState } from '$lib/toast.svelte';
   import type { ProfileData } from '$lib/types';
-  import { errorMessage } from '$lib/utils';
+  import { errorMessage, pdfFilename } from '$lib/utils';
+  import ModelBattle from '$lib/components/ModelBattle.svelte';
   import { Download, FileText, Lock, Sparkles, UserRoundPen } from '@lucide/svelte';
   import confetti from 'canvas-confetti';
 
@@ -100,7 +101,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'cv.pdf';
+      a.download = pdfFilename('resume', { name: profile.name });
       a.click();
       URL.revokeObjectURL(url);
       toastState.success('PDF Downloaded!');
@@ -111,6 +112,11 @@
     }
   }
 </script>
+
+<svelte:head>
+  <title>HireForge — ATS Resume Builder | AI-Optimized CV Generator</title>
+  <meta name="description" content="Generate an ATS-optimized resume with AI-enhanced bullet points tailored to any job description. Boost your chances of getting past applicant tracking systems." />
+</svelte:head>
 
 <div class="pb-10">
   <PageHeader
@@ -258,6 +264,22 @@
     </div>
 
   </div>
+
+  <!-- Model Battle — full-width section below the two-column layout -->
+  {#if activeProfile.current && !isProfileEmpty && !profileLoading}
+    <div class="mt-8">
+      <ModelBattle
+        profileId={activeProfile.current.id}
+        {jobDescription}
+        language="en"
+        onApply={(p) => {
+          profile = p;
+          enhanced = true;
+        }}
+      />
+    </div>
+  {/if}
+
 </div>
 
 <style>

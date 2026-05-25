@@ -18,7 +18,7 @@
   import { consumeStream } from '$lib/stream';
   import { toastState } from '$lib/toast.svelte';
   import type { FitAnalysisResponse, ProfileData, Tone } from '$lib/types';
-  import { errorMessage } from '$lib/utils';
+  import { errorMessage, pdfFilename } from '$lib/utils';
   import {
       ArrowRight, Check, ChevronDown, Copy, Download, Link, Loader2, Lock, Mail,
       MapPin, Pencil, Sparkles, TrendingUp, UserRoundPen,
@@ -254,10 +254,25 @@
     if (!coverLetterText) return;
     downloading = true;
     try {
-      const blob = await generateCoverLetterPdf({ text: coverLetterText });
+      const blob = await generateCoverLetterPdf({
+        text: coverLetterText,
+        name: activeProfileData?.name ?? activeProfile.current?.name,
+        email: activeProfileData?.email,
+        phone: activeProfileData?.phone,
+        location: activeProfileData?.location,
+        linkedin: activeProfileData?.linkedin,
+        github: activeProfileData?.github,
+        portfolio: activeProfileData?.portfolio,
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = 'cover-letter.pdf'; a.click();
+      a.href = url;
+      a.download = pdfFilename('cover_letter', {
+        position: roleTitle,
+        company: companyName,
+        name: activeProfileData?.name ?? activeProfile.current?.name,
+      });
+      a.click();
       URL.revokeObjectURL(url);
       toastState.success('PDF downloaded!');
     } catch (e: unknown) {
@@ -267,6 +282,11 @@
     }
   }
 </script>
+
+<svelte:head>
+  <title>HireForge — AI Cover Letter Generator</title>
+  <meta name="description" content="Write a tailored cover letter in seconds. Paste a job description and let AI craft a compelling cover letter matched to the role." />
+</svelte:head>
 
 <div class="max-w-5xl pb-10">
 
