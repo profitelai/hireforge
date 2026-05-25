@@ -328,6 +328,18 @@ Go to **History** to see every generated CV and cover letter. Filter by profile,
 
 ---
 
+## Screenshots
+
+| Dashboard | ATS Match Score |
+|-----------|----------------|
+| ![Dashboard](assets/screenshots/dashboard.png) | ![ATS Score](assets/screenshots/ats-score.png) |
+
+| Interview Practice | Settings |
+|--------------------|---------|
+| ![Interview](assets/screenshots/interview.png) | ![Settings](assets/screenshots/settings.png) |
+
+---
+
 ## Smart Apply — Supported Job Boards
 
 ### ATS Platforms (Direct API — Fastest)
