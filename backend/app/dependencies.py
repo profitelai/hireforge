@@ -1,15 +1,34 @@
-"""Shared FastAPI dependencies to reduce boilerplate across routes."""
+"""Shared FastAPI dependencies."""
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.auth import decode_access_token
 from app.database import get_db
-from app.models import Profile
-from app.services.settings import get_llm_config
+from app.models import Profile, User
+from app.services.settings import NO_API_KEY_PROVIDERS, get_llm_config, provider_from_model
+
+_bearer = HTTPBearer(auto_error=False)
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    db: Session = Depends(get_db),
+) -> User:
+    """Extract and validate JWT from Authorization header. Raises 401 if missing/invalid."""
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated.")
+    email = decode_access_token(credentials.credentials)
+    if not email:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token.")
+    user = db.query(User).filter_by(email=email, is_active=True).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found.")
+    return user
 
 
 def get_profile_or_404(profile_id: int, db: Session = Depends(get_db)) -> Profile:
-    """Fetch a Profile by ID or raise 404. Use as a FastAPI dependency."""
     profile = db.query(Profile).filter_by(id=profile_id).first()
     if not profile:
         raise HTTPException(
@@ -20,9 +39,18 @@ def get_profile_or_404(profile_id: int, db: Session = Depends(get_db)) -> Profil
 
 
 def require_llm_config(db: Session = Depends(get_db)) -> tuple[str, str]:
-    """Return (model_string, api_key) or raise 400 if LLM is not configured."""
     provider, api_key = get_llm_config(db)
-    if not provider or not api_key:
+    if not provider:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "detail": "LLM not configured. Set provider and API key in Settings.",
+                "code": "API_KEY_NOT_CONFIGURED",
+            },
+        )
+    provider_family = provider_from_model(provider)
+    needs_key = provider_family not in NO_API_KEY_PROVIDERS
+    if needs_key and not api_key:
         raise HTTPException(
             status_code=400,
             detail={

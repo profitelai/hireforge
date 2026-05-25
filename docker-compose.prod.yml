@@ -1,0 +1,27 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "127.0.0.1:18001:8000"
+    volumes:
+      - applykit-data:/data
+    environment:
+      DATABASE_URL: sqlite:////data/applykit.db
+      CORS_ORIGINS: '["https://jobs.bizlocal.ca", "https://hire.bizlocal.ca"]'
+      OLLAMA_API_BASE: https://hyped-harlow-lateritic.ngrok-free.dev
+      SECRET_KEY: d3d38a375635745bd3bfd7f868f51189c5613856eaad53deed9ac31a54abd931
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: https://jobs.bizlocal.ca/api
+    ports:
+      - "127.0.0.1:13001:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  applykit-data:

@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["http://localhost:5173"]
 
+
+    # Auth
+    secret_key: str = "changeme-generate-a-real-secret-with-openssl-rand-hex-32"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
+
     # App
     app_title: str = "HireForge API"
     debug: bool = False

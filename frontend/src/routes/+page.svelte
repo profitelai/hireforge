@@ -101,32 +101,9 @@
 </script>
 
 <svelte:head>
-  <title>HireForge — AI Resume Builder with ATS Score & Interview Prep</title>
-  <meta name="description" content="Build ATS-optimized resumes, write tailored cover letters, and practice job interviews with AI. HireForge is free, open-source, and self-hosted — your data stays private." />
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "HireForge",
-    "applicationCategory": "BusinessApplication",
-    "operatingSystem": "Web",
-    "description": "AI-powered resume builder with ATS scoring, cover letter generator, interview preparation, and job application tracker. Open-source and self-hosted.",
-    "url": "https://jobs.bizlocal.ca/",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD"
-    },
-    "featureList": [
-      "ATS-Optimized Resume Builder",
-      "AI Cover Letter Generator",
-      "Interview Practice with AI Scoring",
-      "Job Application Tracker",
-      "Smart Apply — paste a job URL and get tailored CV + cover letter"
-    ]
-  }
-  <\/script>
-<\/svelte:head>
+  <title>HireForge — AI Resume Builder with ATS Score &amp; Interview Prep</title>
+  <meta name=description content=Build ATS-optimized resumes, write tailored cover letters, and practice job interviews with AI. Free, open-source, self-hosted. />
+</svelte:head>
 
 <div class="flex flex-col gap-6">
 	<!-- Hero -->

@@ -1,22 +1,17 @@
 import json
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import get_profile_or_404
-from app.models import Profile
-from app.schemas import (
-    CreateProfileRequest,
-    ProfileData,
-    ProfileListItem,
-    ProfileListResponse,
-)
+from app.dependencies import get_current_user, get_profile_or_404
+from app.models import Profile, User
+from app.schemas import CreateProfileRequest, ProfileData, ProfileListItem, ProfileListResponse
 from app.utils import profile_to_schema
 
 router = APIRouter()
 
-JSON_FIELDS = {"work_experience", "education", "skills", "projects", "certifications"}
+JSON_FIELDS = {"work_experience", "education", "skills", "projects", "certifications", "languages"}
 
 
 def _profile_list_item(p: Profile) -> ProfileListItem:
@@ -24,69 +19,45 @@ def _profile_list_item(p: Profile) -> ProfileListItem:
     sk = json.loads(p.skills or "[]")
     ed = json.loads(p.education or "[]")
     score = 0
-    if p.name:
-        score += 15
-    if p.email:
-        score += 10
-    if p.summary:
-        score += 10
-    if we:
-        score += 30
-    if ed:
-        score += 20
-    if sk:
-        score += 15
+    if p.name: score += 15
+    if p.email: score += 10
+    if p.summary: score += 10
+    if we: score += 30
+    if ed: score += 20
+    if sk: score += 15
     return ProfileListItem(
-        id=p.id,
-        label=p.label,
-        color=p.color,
-        icon=p.icon,
-        name=p.name,
-        has_content=bool(we or sk or ed),
-        completeness=score,
+        id=p.id, label=p.label, color=p.color, icon=p.icon,
+        name=p.name, has_content=bool(we or sk or ed), completeness=score,
     )
 
 
-def _get_or_404(db: Session, profile_id: int) -> Profile:
-    return get_profile_or_404(profile_id, db)
+def _own_or_404(db: Session, profile_id: int, user: User) -> Profile:
+    profile = db.query(Profile).filter_by(id=profile_id, user_id=user.id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail={"detail": "Profile not found.", "code": "PROFILE_NOT_FOUND"})
+    return profile
 
 
 @router.get("/profiles", response_model=ProfileListResponse)
-def list_profiles(db: Session = Depends(get_db)):
-    items = db.query(Profile).order_by(Profile.id).all()
+def list_profiles(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    items = db.query(Profile).filter_by(user_id=current_user.id).order_by(Profile.id).all()
     return ProfileListResponse(items=[_profile_list_item(p) for p in items])
 
 
 @router.post("/profiles", response_model=ProfileData, status_code=201)
-def create_profile(req: CreateProfileRequest, db: Session = Depends(get_db)):
+def create_profile(req: CreateProfileRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if req.clone_from_id is not None:
-        source = _get_or_404(db, req.clone_from_id)
+        source = _own_or_404(db, req.clone_from_id, current_user)
         profile = Profile(
-            label=req.label,
-            color=req.color,
-            icon=req.icon,
-            name=source.name,
-            email=source.email,
-            phone=source.phone,
-            location=source.location,
-            linkedin=source.linkedin,
-            github=source.github,
-            portfolio=source.portfolio,
-            summary=source.summary,
-            work_experience=source.work_experience,
-            education=source.education,
-            skills=source.skills,
-            projects=source.projects,
-            certifications=source.certifications,
+            label=req.label, color=req.color, icon=req.icon, user_id=current_user.id,
+            name=source.name, email=source.email, phone=source.phone, location=source.location,
+            linkedin=source.linkedin, github=source.github, portfolio=source.portfolio,
+            summary=source.summary, work_experience=source.work_experience,
+            education=source.education, skills=source.skills, projects=source.projects,
+            certifications=source.certifications, languages=source.languages,
         )
     else:
-        profile = Profile(
-            label=req.label,
-            color=req.color,
-            icon=req.icon,
-            name="",
-            email="",
-        )
+        profile = Profile(label=req.label, color=req.color, icon=req.icon, name="", email="", user_id=current_user.id)
     db.add(profile)
     db.commit()
     db.refresh(profile)
@@ -94,55 +65,29 @@ def create_profile(req: CreateProfileRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/profiles/{profile_id}", response_model=ProfileData)
-def get_profile(profile_id: int, db: Session = Depends(get_db)):
-    return profile_to_schema(_get_or_404(db, profile_id))
+def get_profile(profile_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return profile_to_schema(_own_or_404(db, profile_id, current_user))
 
 
-CONTENT_FIELDS = {
-    "name",
-    "email",
-    "phone",
-    "location",
-    "linkedin",
-    "github",
-    "portfolio",
-    "summary",
-    "work_experience",
-    "education",
-    "skills",
-    "projects",
-    "certifications",
-}
+CONTENT_FIELDS = {"name","email","phone","location","linkedin","github","portfolio","summary","work_experience","education","skills","projects","certifications","languages"}
 
 
 @router.put("/profiles/{profile_id}", response_model=ProfileData)
-def save_profile(profile_id: int, data: ProfileData, db: Session = Depends(get_db)):
-    profile = _get_or_404(db, profile_id)
-    fields = {
-        k: v
-        for k, v in data.model_dump(exclude={"id", "updated_at"}).items()
-        if k in CONTENT_FIELDS
-    }
-
+def save_profile(profile_id: int, data: ProfileData, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    profile = _own_or_404(db, profile_id, current_user)
+    fields = {k: v for k, v in data.model_dump(exclude={"id", "updated_at"}).items() if k in CONTENT_FIELDS}
     for key, value in fields.items():
         if key in JSON_FIELDS:
-            setattr(
-                profile,
-                key,
-                json.dumps(
-                    [v.model_dump() if hasattr(v, "model_dump") else v for v in value]
-                ),
-            )
+            setattr(profile, key, json.dumps([v.model_dump() if hasattr(v, "model_dump") else v for v in value]))
         else:
             setattr(profile, key, value)
-
     db.commit()
     db.refresh(profile)
     return profile_to_schema(profile)
 
 
 @router.delete("/profiles/{profile_id}", status_code=204)
-def delete_profile(profile_id: int, db: Session = Depends(get_db)):
-    profile = _get_or_404(db, profile_id)
+def delete_profile(profile_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    profile = _own_or_404(db, profile_id, current_user)
     db.delete(profile)
     db.commit()
