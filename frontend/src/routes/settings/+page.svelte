@@ -1,11 +1,12 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
   import { page } from '$app/state';
-  import { activateProvider, disconnectProvider, getIntegrations } from '$lib/api';
+  import { activateProvider, connectLinkedIn, disconnectLinkedIn, disconnectProvider, fetchTTS, getIntegrations, getLinkedInStatus } from '$lib/api';
   import SettingsModal from '$lib/components/SettingsModal.svelte';
   import { toastState } from '$lib/toast.svelte';
   import type { IntegrationInfo } from '$lib/types';
-  import { ChevronRight, CircleAlert, CircleCheck, Pencil, Plus, Settings, Zap } from '@lucide/svelte';
+  import { SPEED_PRESETS, VOICE_OPTIONS, voiceSettings } from '$lib/voiceSettings.svelte';
+  import { CircleAlert, CircleCheck, Link, Mic, Pencil, Plus, Settings, Trash2, Volume2, Zap } from '@lucide/svelte';
 
   let modalOpen = $state(false);
   let modalProviderId = $state('');
@@ -83,6 +84,73 @@
   }
 
   const anyConfigured = $derived(integrations.some((i) => i.api_key_configured));
+
+  // LinkedIn session
+  let linkedInConnected = $state(false);
+  let linkedInLoading = $state(true);
+  let liAtInput = $state('');
+  let linkedInSaving = $state(false);
+  let linkedInDisconnecting = $state(false);
+  let showLiAtForm = $state(false);
+
+  $effect(() => {
+    getLinkedInStatus()
+      .then(r => { linkedInConnected = r.connected; })
+      .catch(() => {})
+      .finally(() => { linkedInLoading = false; });
+  });
+
+  async function handleLinkedInConnect() {
+    if (!liAtInput.trim()) return;
+    linkedInSaving = true;
+    try {
+      await connectLinkedIn(liAtInput.trim());
+      linkedInConnected = true;
+      liAtInput = '';
+      showLiAtForm = false;
+      toastState.success('LinkedIn connected!');
+    } catch {
+      toastState.error('Failed to save LinkedIn session.');
+    } finally {
+      linkedInSaving = false;
+    }
+  }
+
+  async function handleLinkedInDisconnect() {
+    linkedInDisconnecting = true;
+    try {
+      await disconnectLinkedIn();
+      linkedInConnected = false;
+      toastState.success('LinkedIn disconnected.');
+    } catch {
+      toastState.error('Failed to disconnect LinkedIn.');
+    } finally {
+      linkedInDisconnecting = false;
+    }
+  }
+
+  // Voice settings
+  let testingVoice = $state(false);
+  const TEST_PHRASES: Record<string, string> = {
+    en: "Hello! I'm your AI interview coach. Let's practice together.",
+    fr: "Bonjour ! Je suis votre coach d'entretien IA. Entraînons-nous ensemble.",
+  };
+  let testLang = $state<'en' | 'fr'>('en');
+
+  async function testVoice() {
+    testingVoice = true;
+    try {
+      const blob = await fetchTTS(TEST_PHRASES[testLang], voiceSettings.current.voice, voiceSettings.current.speed);
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => { URL.revokeObjectURL(url); testingVoice = false; };
+      audio.onerror = () => { URL.revokeObjectURL(url); testingVoice = false; };
+      await audio.play();
+    } catch (e) {
+      toastState.error('Voice test failed — make sure OpenAI is configured.');
+      testingVoice = false;
+    }
+  }
 </script>
 
 <div class="max-w-2xl space-y-6">
@@ -246,6 +314,181 @@
         </p>
       {/if}
     {/if}
+  </div>
+</div>
+
+<!-- ── LinkedIn Session ────────────────────────────────────────────────── -->
+<div class="space-y-4 mt-8">
+  <div class="flex items-center gap-2">
+    <Link class="w-4 h-4 text-primary" />
+    <h2 class="text-sm font-medium text-muted-foreground uppercase tracking-wide">LinkedIn Session</h2>
+  </div>
+  <p class="text-xs text-muted-foreground -mt-1">
+    Required for scraping LinkedIn job URLs and auto-apply. Paste your <code class="bg-muted px-1 rounded text-[11px]">li_at</code> cookie from your browser.
+  </p>
+
+  {#if linkedInLoading}
+    <div class="h-14 rounded-lg border bg-muted/30 animate-pulse"></div>
+  {:else}
+    <div class="flex items-center gap-4 rounded-lg border p-4 bg-card {linkedInConnected ? 'border-green-500/30 bg-green-500/5' : 'border-border'}">
+      {#if linkedInConnected}
+        <CircleCheck class="w-5 h-5 text-green-500 shrink-0" />
+        <div class="flex-1">
+          <p class="text-sm font-medium">Connected</p>
+          <p class="text-xs text-muted-foreground">LinkedIn session is active — job URL scraping enabled.</p>
+        </div>
+        <button
+          onclick={handleLinkedInDisconnect}
+          disabled={linkedInDisconnecting}
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs border border-border text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors disabled:opacity-50"
+        >
+          <Trash2 class="w-3.5 h-3.5" />
+          {linkedInDisconnecting ? 'Removing…' : 'Disconnect'}
+        </button>
+      {:else}
+        <CircleAlert class="w-5 h-5 text-muted-foreground/60 shrink-0" />
+        <div class="flex-1">
+          <p class="text-sm font-medium">Not connected</p>
+          <p class="text-xs text-muted-foreground">LinkedIn URL scraping and auto-apply require a session.</p>
+        </div>
+        <button
+          onclick={() => showLiAtForm = !showLiAtForm}
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
+        >
+          <Plus class="w-3.5 h-3.5" />
+          Connect
+        </button>
+      {/if}
+    </div>
+
+    {#if showLiAtForm && !linkedInConnected}
+      <div class="space-y-4 rounded-lg border bg-muted/30 p-4">
+        <!-- Primary: run the local script -->
+        <div class="space-y-2">
+          <p class="text-xs font-semibold">Recommended — run the login script (captures full session):</p>
+          <div class="flex items-center gap-2 bg-background border rounded-md px-3 py-2">
+            <code class="text-xs flex-1 select-all">python3 ./scripts/linkedin_login.py</code>
+          </div>
+          <p class="text-[11px] text-muted-foreground">
+            Opens a browser window → you log in → session is saved automatically. Then click <strong>Check connection</strong> below.
+          </p>
+          <button
+            onclick={async () => { linkedInLoading = true; try { const r = await getLinkedInStatus(); linkedInConnected = r.connected; if (r.connected) { showLiAtForm = false; toastState.success('LinkedIn connected!'); } else { toastState.error('Not connected yet — run the script first.'); } } finally { linkedInLoading = false; } }}
+            class="text-xs px-3 py-1.5 rounded-md border border-border hover:bg-accent transition-colors"
+          >Check connection</button>
+        </div>
+
+        <div class="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <div class="flex-1 border-t"></div>
+          <span>or paste manually (less reliable)</span>
+          <div class="flex-1 border-t"></div>
+        </div>
+
+        <!-- Fallback: manual li_at paste -->
+        <div class="space-y-2">
+          <p class="text-xs font-semibold">Manual — paste <code class="bg-muted px-1 rounded">li_at</code> cookie only:</p>
+          <ol class="text-[11px] text-muted-foreground space-y-0.5 list-decimal list-inside">
+            <li>Open <strong>linkedin.com</strong> and log in</li>
+            <li>DevTools → Application → Cookies → <code class="bg-muted px-1 rounded">www.linkedin.com</code></li>
+            <li>Find <code class="bg-muted px-1 rounded">li_at</code> and copy its value</li>
+          </ol>
+          <div class="flex gap-2">
+            <input
+              type="password"
+              bind:value={liAtInput}
+              placeholder="Paste li_at value…"
+              class="flex-1 rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button
+              onclick={handleLinkedInConnect}
+              disabled={linkedInSaving || !liAtInput.trim()}
+              class="px-4 py-2 rounded-md text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {linkedInSaving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
+  {/if}
+</div>
+
+<!-- ── Voice Settings ──────────────────────────────────────────────────── -->
+<div class="space-y-4 mt-8">
+  <div class="flex items-center gap-2">
+    <Volume2 class="w-4 h-4 text-primary" />
+    <h2 class="text-sm font-medium text-muted-foreground uppercase tracking-wide">Interview Voice</h2>
+  </div>
+  <p class="text-xs text-muted-foreground -mt-1">Choose how the AI coach speaks during interview practice. Works in English and French.</p>
+
+  <!-- Voice picker -->
+  <div class="space-y-2">
+    <p class="text-xs font-semibold text-foreground">Voice</p>
+    <div class="grid grid-cols-2 gap-2">
+      {#each VOICE_OPTIONS as opt}
+        <button
+          onclick={() => voiceSettings.setVoice(opt.value)}
+          class="flex flex-col items-start px-3 py-2.5 rounded-lg border text-left transition-all
+            {voiceSettings.current.voice === opt.value
+              ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
+              : 'border-border bg-card hover:border-primary/30 hover:bg-muted/40'}"
+        >
+          <div class="flex items-center gap-2 w-full">
+            <Mic class="w-3.5 h-3.5 {voiceSettings.current.voice === opt.value ? 'text-primary' : 'text-muted-foreground'} shrink-0" />
+            <span class="text-sm font-semibold">{opt.label}</span>
+            <span class="ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full
+              {opt.gender === 'Male' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
+               opt.gender === 'Female' ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300' :
+               'bg-muted text-muted-foreground'}">{opt.gender}</span>
+          </div>
+          <p class="text-[11px] text-muted-foreground mt-0.5 pl-5">{opt.description}</p>
+        </button>
+      {/each}
+    </div>
+  </div>
+
+  <!-- Speed -->
+  <div class="space-y-2">
+    <p class="text-xs font-semibold text-foreground">Speed</p>
+    <div class="flex gap-2">
+      {#each SPEED_PRESETS as preset}
+        <button
+          onclick={() => voiceSettings.setSpeed(preset.value)}
+          class="flex-1 py-2 rounded-lg border text-xs font-semibold transition-all
+            {voiceSettings.current.speed === preset.value
+              ? 'border-primary bg-primary/5 text-primary'
+              : 'border-border bg-card text-muted-foreground hover:border-primary/30'}"
+        >{preset.label}</button>
+      {/each}
+    </div>
+    <p class="text-[11px] text-muted-foreground">Current: {voiceSettings.current.speed}×</p>
+  </div>
+
+  <!-- Test phrase language + test button -->
+  <div class="flex items-center gap-3">
+    <div class="flex gap-1">
+      {#each [{ v: 'en', label: '🇬🇧 EN' }, { v: 'fr', label: '🇫🇷 FR' }] as lang}
+        <button
+          onclick={() => testLang = lang.v as 'en' | 'fr'}
+          class="px-3 py-1 rounded-md text-xs font-semibold border transition-all
+            {testLang === lang.v
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-muted text-muted-foreground border-border hover:border-primary/40'}"
+        >{lang.label}</button>
+      {/each}
+    </div>
+    <button
+      onclick={testVoice}
+      disabled={testingVoice}
+      class="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card hover:bg-accent transition-colors text-sm font-medium disabled:opacity-50"
+    >
+      <Volume2 class="w-4 h-4 {testingVoice ? 'animate-pulse text-primary' : 'text-muted-foreground'}" />
+      {testingVoice ? 'Playing…' : 'Test voice'}
+    </button>
+    <button
+      onclick={() => voiceSettings.reset()}
+      class="text-xs text-muted-foreground hover:text-foreground transition-colors underline ml-auto"
+    >Reset to default</button>
   </div>
 </div>
 

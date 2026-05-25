@@ -15,13 +15,13 @@ class Settings(BaseSettings):
     )
 
     # Database
-    database_url: str = "sqlite:///./applykit.db"
+    database_url: str = "sqlite:///./hireforge.db"
 
     # CORS
     cors_origins: list[str] = ["http://localhost:5173"]
 
     # App
-    app_title: str = "ApplyKit API"
+    app_title: str = "HireForge API"
     debug: bool = False
 
 

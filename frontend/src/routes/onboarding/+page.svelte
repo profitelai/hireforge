@@ -36,11 +36,11 @@
       <div class="text-center space-y-4 mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="inline-flex items-center rounded-full border bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-2">
           <Sparkles class="mr-2 h-4 w-4" />
-          Welcome to ApplyKit
+          Welcome to HireForge
         </div>
         <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight">Let's set up your <span class="text-primary">Profile</span></h1>
         <p class="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-          Your profile is the core of ApplyKit. It helps us generate tailored CVs and cover letters just for you.
+          Your profile is the core of HireForge. It helps us generate tailored CVs and cover letters just for you.
         </p>
       </div>
 

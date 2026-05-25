@@ -24,7 +24,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    db_url = os.getenv("DATABASE_URL", "sqlite:///./applykit.db")
+    db_url = os.getenv("DATABASE_URL", "sqlite:///./hireforge.db")
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = db_url
     connectable = engine_from_config(
